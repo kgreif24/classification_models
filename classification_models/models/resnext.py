@@ -202,7 +202,7 @@ def ResNeXt(
     for stage, rep in enumerate(model_params.repetitions):
         for block in range(rep):
 
-            filters = init_filters * (2 ** stage)
+            filters = init_filters * (2 ** stage) / 4   # Edit divide by 4 to shrink model size
 
             # first block of first stage without strides because we have maxpooling before
             if stage == 0 and block == 0:
