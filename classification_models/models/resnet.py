@@ -135,21 +135,21 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
         if cut == 'pre':
             shortcut = input_tensor
         elif cut == 'post':
-            shortcut = layers.Conv2D(filters * 4, (1, 1), name=sc_name, strides=strides, **conv_params)(input_tensor)
+            shortcut = layers.Conv2D(filters, (1, 1), name=sc_name, strides=strides, **conv_params)(input_tensor)
         else:
             raise ValueError('Cut type not in ["pre", "post"]')
 
         # continue with convolution layers
-        x = layers.Conv2D(filters, (1, 1), name=conv_name + '1', **conv_params)(input_tensor)
+        x = layers.Conv2D(int(filters * 0.5), (1, 1), name=conv_name + '1', **conv_params)(input_tensor)
 
         x = layers.BatchNormalization(name=bn_name + '2', **bn_params)(x)
         x = layers.Activation('relu', name=relu_name + '2')(x)
         x = layers.ZeroPadding2D(padding=(1, 1))(x)
-        x = layers.Conv2D(filters, (3, 3), strides=strides, name=conv_name + '2', **conv_params)(x)
+        x = layers.Conv2D(int(filters * 0.5), (3, 3), strides=strides, name=conv_name + '2', **conv_params)(x)
 
         x = layers.BatchNormalization(name=bn_name + '3', **bn_params)(x)
         x = layers.Activation('relu', name=relu_name + '3')(x)
-        x = layers.Conv2D(filters * 4, (1, 1), name=conv_name + '3', **conv_params)(x)
+        x = layers.Conv2D(filters, (1, 1), name=conv_name + '3', **conv_params)(x)
 
         # use attention block if defined
         if attention is not None:
