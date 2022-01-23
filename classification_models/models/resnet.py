@@ -1,6 +1,7 @@
 import os
 import collections
 
+import tensorflow as tf
 
 from ._common_blocks import ChannelSE
 from .. import get_submodules_from_kwargs
@@ -44,7 +45,7 @@ def get_bn_params(**params):
     axis = 3 if backend.image_data_format() == 'channels_last' else 1
     default_bn_params = {
         'axis': axis,
-        'momentum': 0.99,
+        'momentum': 0.1,
         'epsilon': 2e-5,
         'center': True,
         'scale': True,
@@ -130,19 +131,16 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
         bn_params = get_bn_params()
         conv_name, bn_name, relu_name, sc_name = handle_block_names(stage, block)
 
-        x = layers.BatchNormalization(name=bn_name + '1', **bn_params)(input_tensor)
-        x = layers.Activation('relu', name=relu_name + '1')(x)
-
         # defining shortcut connection
         if cut == 'pre':
             shortcut = input_tensor
         elif cut == 'post':
-            shortcut = layers.Conv2D(filters * 4, (1, 1), name=sc_name, strides=strides, **conv_params)(x)
+            shortcut = layers.Conv2D(filters * 4, (1, 1), name=sc_name, strides=strides, **conv_params)(input_tensor)
         else:
             raise ValueError('Cut type not in ["pre", "post"]')
 
         # continue with convolution layers
-        x = layers.Conv2D(filters, (1, 1), name=conv_name + '1', **conv_params)(x)
+        x = layers.Conv2D(filters, (1, 1), name=conv_name + '1', **conv_params)(input_tensor)
 
         x = layers.BatchNormalization(name=bn_name + '2', **bn_params)(x)
         x = layers.Activation('relu', name=relu_name + '2')(x)
@@ -159,6 +157,10 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
 
         # add residual connection
         x = layers.Add()([x, shortcut])
+
+        # Final batch norm and activation
+        x = layers.BatchNormalization(name=bn_name + '4', **bn_params)(x)
+        x = layers.Activation('relu', name=relu_name + '4')(x)
 
         return x
 
@@ -228,13 +230,13 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
     init_filters = 64
 
     # resnet bottom
-    x = layers.BatchNormalization(name='bn_data', **no_scale_bn_params)(img_input)
+    x = layers.Lambda(lambda x: tf.math.log1p(x), name='log1p')(img_input)
     x = layers.ZeroPadding2D(padding=(3, 3))(x)
     x = layers.Conv2D(init_filters, (7, 7), strides=(2, 2), name='conv0', **conv_params)(x)
     x = layers.BatchNormalization(name='bn0', **bn_params)(x)
     x = layers.Activation('relu', name='relu0')(x)
-    x = layers.ZeroPadding2D(padding=(1, 1))(x)
-    x = layers.MaxPooling2D((3, 3), strides=(2, 2), padding='valid', name='pooling0')(x)
+    # x = layers.ZeroPadding2D(padding=(1, 1))(x)
+    # x = layers.MaxPooling2D((3, 3), strides=(2, 2), padding='valid', name='pooling0')(x)
 
     # resnet body
     for stage, rep in enumerate(model_params.repetitions):
@@ -255,14 +257,13 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
                 x = ResidualBlock(filters, stage, block, strides=(1, 1),
                                   cut='pre', attention=Attention)(x)
 
-    x = layers.BatchNormalization(name='bn1', **bn_params)(x)
-    x = layers.Activation('relu', name='relu1')(x)
+    # x = layers.BatchNormalization(name='bn1', **bn_params)(x)
+    # x = layers.Activation('relu', name='relu1')(x)
 
     # resnet top
-    if include_top:
-        x = layers.GlobalAveragePooling2D(name='pool1')(x)
-        x = layers.Dense(classes, name='fc1')(x)
-        x = layers.Activation('softmax', name='softmax')(x)
+    x = layers.GlobalAveragePooling2D(name='pool1')(x)
+    x = layers.Dense(classes, name='fc1')(x)
+    x = layers.Activation('sigmoid', name='sigmoid')(x)
 
     # Ensure that the model takes into account any potential predecessors of `input_tensor`.
     if input_tensor is not None:
