@@ -262,6 +262,7 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
 
     # resnet top
     x = layers.GlobalAveragePooling2D(name='pool1')(x)
+    x = layers.Dropout(0.5, name='final_drop')(x)
     x = layers.Dense(classes, name='fc1')(x)
     x = layers.Activation('sigmoid', name='sigmoid')(x)
 
