@@ -136,6 +136,7 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
             shortcut = input_tensor
         elif cut == 'post':
             shortcut = layers.Conv2D(filters, (1, 1), name=sc_name, strides=strides, **conv_params)(input_tensor)
+            shortcut = layers.BatchNormalization(name=bn_name + 'sc', **bn_params)(shortcut)
         else:
             raise ValueError('Cut type not in ["pre", "post"]')
 
@@ -151,6 +152,8 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
         x = layers.Activation('relu', name=relu_name + '3')(x)
         x = layers.Conv2D(filters, (1, 1), name=conv_name + '3', **conv_params)(x)
 
+        x = layers.BatchNormalization(name=bn_name + '4', **bn_params)(x)
+
         # use attention block if defined
         if attention is not None:
             x = attention(x)
@@ -158,8 +161,7 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
         # add residual connection
         x = layers.Add()([x, shortcut])
 
-        # Final batch norm and activation
-        x = layers.BatchNormalization(name=bn_name + '4', **bn_params)(x)
+        # Final activation
         x = layers.Activation('relu', name=relu_name + '4')(x)
 
         return x
