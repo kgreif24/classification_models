@@ -110,7 +110,8 @@ def residual_conv_block(filters, stage, block, strides=(1, 1), attention=None, c
     return layer
 
 
-def residual_bottleneck_block(filters, stage, block, strides=None, attention=None, cut='pre'):
+def residual_bottleneck_block(filters, stage, block, strides=None, attention=None,
+                              cut='pre', bn_mom=0.1):
     """The identity block is the block that has no conv layer at shortcut.
     # Arguments
         input_tensor: input tensor
@@ -120,6 +121,8 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
         stage: integer, current stage label, used for generating layer names
         block: 'a','b'..., current block label, used for generating layer names
         cut: one of 'pre', 'post'. used to decide where skip connection is taken
+        bn_mom: optional float that gives the momentum to use in all batch
+            norm layers.
     # Returns
         Output tensor for the block.
     """
@@ -128,7 +131,7 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
 
         # get params and names of layers
         conv_params = get_conv_params()
-        bn_params = get_bn_params()
+        bn_params = get_bn_params(momentum=bn_mom)
         conv_name, bn_name, relu_name, sc_name = handle_block_names(stage, block)
 
         # defining shortcut connection
@@ -175,7 +178,7 @@ def residual_bottleneck_block(filters, stage, block, strides=None, attention=Non
 
 
 def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
-           classes=1000, weights='imagenet', **kwargs):
+           classes=1000, weights='imagenet', bn_mom=0.1, dropout=0.5, **kwargs):
     """Instantiates the ResNet, SEResNet architecture.
     Optionally loads weights pre-trained on ImageNet.
     Note that the data format convention used by the model is
@@ -198,6 +201,9 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
         classes: optional number of classes to classify images
             into, only to be specified if `include_top` is True, and
             if no `weights` argument is specified.
+        bn_mom: optional float, gives the momentum coefficient to use in all
+            batch normalization layers.
+        dropout: optional float, the dropout probability to use in top network
 
     Returns:
         A Keras model instance.
@@ -227,7 +233,7 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
 
     # get parameters for model layers
     no_scale_bn_params = get_bn_params(scale=False)
-    bn_params = get_bn_params()
+    bn_params = get_bn_params(momentum=bn_mom)
     conv_params = get_conv_params()
     init_filters = 64
 
@@ -249,22 +255,22 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
             # first block of first stage without strides because we have maxpooling before
             if block == 0 and stage == 0:
                 x = ResidualBlock(filters, stage, block, strides=(1, 1),
-                                  cut='post', attention=Attention)(x)
+                                  cut='post', attention=Attention, bn_mom=bn_mom)(x)
 
             elif block == 0:
                 x = ResidualBlock(filters, stage, block, strides=(2, 2),
-                                  cut='post', attention=Attention)(x)
+                                  cut='post', attention=Attention, bn_mom=bn_mom)(x)
 
             else:
                 x = ResidualBlock(filters, stage, block, strides=(1, 1),
-                                  cut='pre', attention=Attention)(x)
+                                  cut='pre', attention=Attention, bn_mom=bn_mom)(x)
 
     # x = layers.BatchNormalization(name='bn1', **bn_params)(x)
     # x = layers.Activation('relu', name='relu1')(x)
 
     # resnet top
     x = layers.GlobalAveragePooling2D(name='pool1')(x)
-    x = layers.Dropout(0.5, name='final_drop')(x)
+    x = layers.Dropout(dropout, name='final_drop')(x)
     x = layers.Dense(classes, name='fc1')(x)
     x = layers.Activation('sigmoid', name='sigmoid')(x)
 
@@ -326,9 +332,9 @@ def ResNet34(input_shape=None, input_tensor=None, weights=None, classes=1000, in
     )
 
 
-def ResNet50(input_shape=None, input_tensor=None, weights=None, classes=1000, include_top=True, **kwargs):
+def ResNet50(params, input_shape=None, input_tensor=None, weights=None, classes=1000, include_top=True, **kwargs):
     return ResNet(
-        MODELS_PARAMS['resnet50'],
+        params,
         input_shape=input_shape,
         input_tensor=input_tensor,
         include_top=include_top,
