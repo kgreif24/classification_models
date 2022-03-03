@@ -249,7 +249,7 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
 
     # resnet body
     for stage, rep in enumerate(model_params.repetitions):
-        for block in range(rep):
+        for block in range(int(rep)):
 
             filters = init_filters * (2 ** stage)
 
