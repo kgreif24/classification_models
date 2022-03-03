@@ -225,7 +225,8 @@ def ResNet(model_params, input_shape=None, input_tensor=None, include_top=True,
             img_input = input_tensor
 
     # choose residual block type
-    ResidualBlock = model_params.residual_block
+    # kgreif edit: hard code usage of bottleneck block
+    ResidualBlock = residual_bottleneck_block
     if model_params.attention:
         Attention = model_params.attention(**kwargs)
     else:
